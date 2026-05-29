@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp REST API · Dashboard</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo">✦</span>
+          <div>
+            <h1>WhatsApp REST API</h1>
+            <p class="subtitle">whatsapp-web.js · Express · Webhook bridge</p>
+          </div>
+        </div>
+        <div class="status-pill" id="statusPill">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">Not started</span>
+        </div>
+      </header>
+
+      <main class="grid">
+        <!-- Session / QR -->
+        <section class="card span-2">
+          <h2>Connection</h2>
+          <div class="row">
+            <label for="userId">User ID</label>
+            <input id="userId" type="text" value="default" />
+            <button id="startBtn" class="btn primary">Start Session</button>
+            <button id="logoutBtn" class="btn danger">Logout</button>
+          </div>
+          <div class="qr-wrap" id="qrWrap">
+            <div class="qr-placeholder" id="qrPlaceholder">
+              <p>Click <b>Start Session</b>, then scan the QR with WhatsApp →<br />
+              <span class="muted">Linked devices › Link a device</span></p>
+            </div>
+            <img id="qrImage" alt="QR code" style="display:none" />
+          </div>
+          <p class="hint" id="connHint"></p>
+        </section>
+
+        <!-- Send message -->
+        <section class="card">
+          <h2>Send Message</h2>
+          <label for="number">Number (with country code)</label>
+          <input id="number" type="text" placeholder="14155552671" />
+          <label for="message">Message</label>
+          <textarea id="message" rows="3" placeholder="Hello from the API"></textarea>
+          <button id="sendBtn" class="btn primary full">Send</button>
+          <pre class="output" id="sendOut"></pre>
+        </section>
+
+        <!-- Chats -->
+        <section class="card">
+          <h2>Recent Chats</h2>
+          <button id="chatsBtn" class="btn full">Fetch Chats</button>
+          <div class="list" id="chatsList"></div>
+        </section>
+
+        <!-- Unread -->
+        <section class="card">
+          <h2>Unread Messages</h2>
+          <button id="unreadBtn" class="btn full">Fetch Unread</button>
+          <div class="list" id="unreadList"></div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Endpoints:</span>
+        <code>/api/start-session</code>
+        <code>/api/status/:userId</code>
+        <code>/api/send-message</code>
+        <code>/api/unread</code>
+        <code>/api/chats</code>
+        <code>/api/logout</code>
+      </footer>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>
