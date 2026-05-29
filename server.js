@@ -222,23 +222,116 @@ app.get('/api/status/:userId', (req, res) => {
   });
 });
 
-// POST /api/send-message  { userId, number, message }
+// Resolve a recipient (contact name OR phone number) to a WhatsApp chat id.
+// Returns { chatId, label } or throws with a helpful message.
+async function resolveRecipient(client, recipient) {
+  const raw = String(recipient).trim();
+  const digits = raw.replace(/[^0-9]/g, '');
+  const looksLikeNumber = digits.length >= 7 && /^[+\d][\d\s()+-]*$/.test(raw);
+
+  // Treat as a raw phone number. Use getNumberId so WhatsApp resolves the
+  // correct serialized id (avoids the "No LID for user" error on newer WA Web).
+  if (looksLikeNumber) {
+    const numberId = await client.getNumberId(digits);
+    if (!numberId) {
+      throw new Error(`${digits} is not registered on WhatsApp`);
+    }
+    return { chatId: numberId._serialized, label: digits };
+  }
+
+  // Otherwise resolve by name against chats, then contacts (case-insensitive).
+  const needle = raw.toLowerCase();
+  const chats = await client.getChats();
+  let match = chats.find((c) => (c.name || '').toLowerCase() === needle);
+  if (!match) match = chats.find((c) => (c.name || '').toLowerCase().includes(needle));
+  if (match) {
+    return { chatId: match.id._serialized, label: match.name };
+  }
+
+  const contacts = await client.getContacts();
+  let contact = contacts.find(
+    (c) => ((c.name || c.pushname || '').toLowerCase() === needle)
+  );
+  if (!contact) {
+    contact = contacts.find((c) =>
+      ((c.name || c.pushname || '').toLowerCase().includes(needle)) && c.id && c.id.user
+    );
+  }
+  if (contact) {
+    return { chatId: contact.id._serialized, label: contact.name || contact.pushname };
+  }
+
+  throw new Error(`No contact or chat matching "${raw}" was found`);
+}
+
+// POST /api/send-message  { userId, recipient | number | name, message }
 app.post('/api/send-message', async (req, res) => {
-  const { userId = 'default', number, message } = req.body || {};
-  if (!number || !message) {
-    return res.status(400).json({ success: false, error: 'number and message are required' });
+  const body = req.body || {};
+  const userId = body.userId || 'default';
+  const message = body.message;
+  const recipient = body.recipient || body.name || body.number;
+  if (!recipient || !message) {
+    return res.status(400).json({ success: false, error: 'recipient (name or number) and message are required' });
   }
   const session = sessions.get(userId);
   if (!session || session.status !== 'connected') {
     return res.status(409).json({ success: false, error: 'Session not connected' });
   }
   try {
-    const sanitized = String(number).replace(/[^0-9]/g, '');
-    const chatId = `${sanitized}@c.us`;
+    const { chatId, label } = await resolveRecipient(session.client, recipient);
     const sent = await session.client.sendMessage(chatId, String(message));
-    return res.json({ success: true, to: sanitized, id: sent.id ? sent.id._serialized : null });
+    return res.json({
+      success: true,
+      to: label,
+      chatId,
+      id: sent.id ? sent.id._serialized : null,
+    });
   } catch (err) {
     log('send-message error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/contacts?userId=  -> names + numbers for autocomplete
+app.get('/api/contacts', async (req, res) => {
+  const userId = req.query.userId || 'default';
+  const session = sessions.get(userId);
+  if (!session || session.status !== 'connected') {
+    return res.status(409).json({ success: false, error: 'Session not connected' });
+  }
+  try {
+    const seen = new Set();
+    const out = [];
+    const chats = await session.client.getChats();
+    for (const chat of chats) {
+      const name = chat.name;
+      if (!name) continue;
+      const id = chat.id._serialized;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({
+        name,
+        id,
+        number: chat.isGroup ? null : (chat.id.user || null),
+        isGroup: chat.isGroup,
+      });
+    }
+    try {
+      const contacts = await session.client.getContacts();
+      for (const c of contacts) {
+        if (!c.isMyContact || !c.id || c.id.server !== 'c.us') continue;
+        const id = c.id._serialized;
+        if (seen.has(id)) continue;
+        const name = c.name || c.pushname;
+        if (!name) continue;
+        seen.add(id);
+        out.push({ name, id, number: c.id.user || c.number || null, isGroup: false });
+      }
+    } catch (_) {}
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return res.json({ success: true, count: out.length, contacts: out });
+  } catch (err) {
+    log('contacts error:', err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 });

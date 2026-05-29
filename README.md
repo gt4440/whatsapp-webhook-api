@@ -17,7 +17,8 @@ A production-ready WhatsApp gateway built on **Node.js + Express + [whatsapp-web
 | ------ | ----------------------- | -------------------------------------------------- |
 | POST   | `/api/start-session`    | Initialize WhatsApp; returns a QR base64 string    |
 | GET    | `/api/status/:userId`   | Connection status                                  |
-| POST   | `/api/send-message`     | Send a text message (`{ userId, number, message }`)|
+| POST   | `/api/send-message`     | Send a text message (`{ userId, recipient, message }`) — `recipient` may be a **contact name OR phone number** |
+| GET    | `/api/contacts`         | Contacts/chats (name + number) for autocomplete    |
 | GET    | `/api/unread`           | Unread messages with sender name + text            |
 | GET    | `/api/chats`            | Recent chats with names                            |
 | POST   | `/api/logout`           | Disconnect the session                             |

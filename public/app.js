@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 let pollTimer = null;
+let contactsLoaded = false;
 
 function getUserId() {
   return ($('userId').value || 'default').trim();
@@ -74,6 +75,10 @@ function startPolling() {
     if (data.status === 'connected') {
       showQr(null);
       $('connHint').textContent = 'Connected to WhatsApp.';
+      if (!contactsLoaded) {
+        contactsLoaded = true;
+        loadContacts();
+      }
     } else if (data.status === 'qr') {
       // refresh QR if it rotated
       const r = await api('/api/start-session', {
@@ -89,6 +94,8 @@ async function logout() {
   const userId = getUserId();
   await api('/api/logout', { method: 'POST', body: JSON.stringify({ userId }) });
   if (pollTimer) clearInterval(pollTimer);
+  contactsLoaded = false;
+  $('contactsList').innerHTML = '';
   setStatus('disconnected');
   showQr(null);
   $('connHint').textContent = 'Session ended.';
@@ -96,14 +103,34 @@ async function logout() {
 
 async function sendMessage() {
   const userId = getUserId();
-  const number = $('number').value.trim();
+  const recipient = $('recipient').value.trim();
   const message = $('message').value.trim();
+  if (!recipient || !message) {
+    $('sendOut').textContent = 'Enter a contact name/number and a message.';
+    return;
+  }
   $('sendOut').textContent = 'Sending…';
   const { data, status } = await api('/api/send-message', {
     method: 'POST',
-    body: JSON.stringify({ userId, number, message }),
+    body: JSON.stringify({ userId, recipient, message }),
   });
   $('sendOut').textContent = `HTTP ${status}\n` + JSON.stringify(data, null, 2);
+}
+
+async function loadContacts() {
+  const userId = getUserId();
+  const { data } = await api(`/api/contacts?userId=${encodeURIComponent(userId)}`);
+  const dl = $('contactsList');
+  if (!data.contacts || !data.contacts.length) {
+    dl.innerHTML = '';
+    return;
+  }
+  dl.innerHTML = data.contacts
+    .map((c) => {
+      const label = c.number ? `${c.name} · ${c.number}` : c.name;
+      return `<option value="${escapeHtml(c.name)}">${escapeHtml(label)}</option>`;
+    })
+    .join('');
 }
 
 async function fetchChats() {
@@ -164,4 +191,9 @@ $('unreadBtn').addEventListener('click', fetchUnread);
 (async () => {
   const { data } = await api(`/api/status/${encodeURIComponent(getUserId())}`);
   setStatus(data.status || 'not_started');
+  if (data.status === 'connected') {
+    contactsLoaded = true;
+    loadContacts();
+    startPolling();
+  }
 })();

@@ -46,8 +46,15 @@
         <!-- Send message -->
         <section class="card">
           <h2>Send Message</h2>
-          <label for="number">Number (with country code)</label>
-          <input id="number" type="text" placeholder="14155552671" />
+          <label for="recipient">Contact name or number</label>
+          <input
+            id="recipient"
+            type="text"
+            list="contactsList"
+            autocomplete="off"
+            placeholder="Type a name (e.g. Mom) or number (14155552671)"
+          />
+          <datalist id="contactsList"></datalist>
           <label for="message">Message</label>
           <textarea id="message" rows="3" placeholder="Hello from the API"></textarea>
           <button id="sendBtn" class="btn primary full">Send</button>
